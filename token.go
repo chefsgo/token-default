@@ -1,11 +1,16 @@
 package token_default
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/chefsgo/chef"
+)
+
+var (
+	errInvalidTokenData = errors.New("Invalid token data.")
 )
 
 type (
@@ -66,7 +71,7 @@ func (connect *defaultTokenConnect) Sign(token *chef.Token, expiry time.Duration
 
 	payload := ""
 	if token.Payload != nil {
-		if vv, err := chef.JsonEncode(token.Payload); err == nil {
+		if vv, err := chef.JSONMarshal(token.Payload); err == nil {
 			payload = string(vv)
 		}
 	}
@@ -88,10 +93,9 @@ func (connect *defaultTokenConnect) Sign(token *chef.Token, expiry time.Duration
 }
 
 func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) {
-
 	alls := strings.Split(token, ".")
 	if len(alls) != 2 {
-		return nil, chef.Invalid
+		return nil, errInvalidTokenData
 	}
 	//验证签名
 	err := hmacVerify(alls[0], alls[1], connect.config.Secret)
@@ -108,7 +112,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 	//分割字串
 	raws := strings.Split(raw, "\t")
 	if len(raws) != 3 {
-		return nil, chef.Invalid
+		return nil, errInvalidTokenData
 	}
 
 	//得到数字列表
@@ -117,7 +121,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 		return nil, err
 	}
 	if len(nums) != 3 {
-		return nil, chef.Invalid
+		return nil, errInvalidTokenData
 	}
 
 	now := time.Now()
@@ -135,7 +139,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 
 	//解析payload
 	if raws[2] != "" {
-		err = chef.JsonDecode([]byte(raws[2]), &data.Payload)
+		err = chef.JSONUnmarshal([]byte(raws[2]), &data.Payload)
 		if err != nil {
 			return nil, err
 		}
