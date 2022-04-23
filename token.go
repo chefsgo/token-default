@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chefsgo/chef"
+	"github.com/chefsgo/codec"
+	"github.com/chefsgo/token"
 )
 
 var (
@@ -14,71 +15,69 @@ var (
 )
 
 type (
-	defaultTokenDriver  struct{}
-	defaultTokenConnect struct {
-		config  chef.TokenConfig
-		setting defaultTokenSetting
+	defaultDriver  struct{}
+	defaultConnect struct {
+		config  token.Config
+		setting defaultSetting
 	}
-	defaultTokenSetting struct {
+	defaultSetting struct {
 	}
 )
 
 //连接
-func (driver *defaultTokenDriver) Connect(config chef.TokenConfig) (chef.TokenConnect, error) {
-	setting := defaultTokenSetting{}
-	return &defaultTokenConnect{
+func (driver *defaultDriver) Connect(config token.Config) (token.Connect, error) {
+	setting := defaultSetting{}
+	return &defaultConnect{
 		config: config, setting: setting,
 	}, nil
 }
 
 //打开连接
-func (connect *defaultTokenConnect) Open() error {
+func (connect *defaultConnect) Open() error {
 	return nil
 }
 
 //关闭连接
-func (connect *defaultTokenConnect) Close() error {
+func (connect *defaultConnect) Close() error {
 	return nil
 }
 
 //------------- token begin ------------------------------
 
 //签名格式	id/auth/info/expiry/load
-func (connect *defaultTokenConnect) Sign(token *chef.Token, expiry time.Duration) (string, error) {
-	now := time.Now()
-
-	if expiry > 0 {
-		token.Expiry = now.Add(expiry).Unix()
+func (connect *defaultConnect) Sign(data *token.Token) (string, error) {
+	if data.Expiry < 0 {
+		data.Expiry = 0
 	}
 
 	authed := int64(0)
-	if token.Authorized {
+	if data.Authorized {
 		authed = 1
 	}
-	id, err := chef.DigitDecrypt(token.ActId)
+	id, err := codec.DecryptDIGIT(data.ActId)
 	if err != nil {
 		return "", err
 	}
 
 	nums := []int64{
-		authed, id, token.Expiry,
+		authed, id, data.Expiry,
 	}
 
-	numsText, err := chef.DigitsEncrypt(nums)
+	numsText, err := codec.EncryptDIGITS(nums)
 	if err != nil {
 		return "", err
 	}
 
 	payload := ""
-	if token.Payload != nil {
-		if vv, err := chef.JSONMarshal(token.Payload); err == nil {
+	if data.Payload != nil {
+		if vv, err := codec.MarshalJSON(data.Payload); err == nil {
 			payload = string(vv)
 		}
 	}
 
-	raw := fmt.Sprintf("%v\t%v\t%v", numsText, token.Identity, payload)
+	raw := fmt.Sprintf("%v\t%v\t%v", numsText, data.Identity, payload)
 
-	hash, err := chef.TextEncrypt(raw)
+	hash, err := codec.EncryptTEXT(raw)
 	if err != nil {
 		return "", err
 	}
@@ -92,8 +91,8 @@ func (connect *defaultTokenConnect) Sign(token *chef.Token, expiry time.Duration
 	return fmt.Sprintf("%s.%s", hash, sign), nil
 }
 
-func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) {
-	alls := strings.Split(token, ".")
+func (connect *defaultConnect) Validate(tokenStr string) (*token.Token, error) {
+	alls := strings.Split(tokenStr, ".")
 	if len(alls) != 2 {
 		return nil, errInvalidTokenData
 	}
@@ -104,7 +103,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 	}
 
 	//处理原数据
-	raw, err := chef.TextDecrypt(alls[0])
+	raw, err := codec.DecryptTEXT(alls[0])
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +115,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 	}
 
 	//得到数字列表
-	nums, err := chef.DigitsDecrypt(raws[0])
+	nums, err := codec.DecryptDIGITS(raws[0])
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +126,7 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 	now := time.Now()
 
 	//data
-	data := &chef.Token{
+	data := &token.Token{
 		Identity: raws[1],
 		Expiry:   nums[2],
 	}
@@ -139,14 +138,14 @@ func (connect *defaultTokenConnect) Validate(token string) (*chef.Token, error) 
 
 	//解析payload
 	if raws[2] != "" {
-		err = chef.JSONUnmarshal([]byte(raws[2]), &data.Payload)
+		err = codec.UnmarshalJSON([]byte(raws[2]), &data.Payload)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	//编码ID
-	id, err := chef.DigitEncrypt(nums[1])
+	id, err := codec.EncryptDIGIT(nums[1])
 	if err == nil {
 		data.ActId = id
 	}

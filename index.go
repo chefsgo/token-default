@@ -1,13 +1,13 @@
 package token_default
 
 import (
-	"github.com/chefsgo/chef"
+	"github.com/chefsgo/token"
 )
 
-func Driver() chef.TokenDriver {
-	return &defaultTokenDriver{}
+func Driver() token.Driver {
+	return &defaultDriver{}
 }
 
 func init() {
-	chef.Register("default", Driver())
+	token.Register("default", Driver())
 }
