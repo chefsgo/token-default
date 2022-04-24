@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chefsgo/codec"
+	"github.com/chefsgo/chef"
 	"github.com/chefsgo/token"
 )
 
@@ -54,7 +54,7 @@ func (connect *defaultConnect) Sign(data *token.Token) (string, error) {
 	if data.Authorized {
 		authed = 1
 	}
-	id, err := codec.DecryptDIGIT(data.ActId)
+	id, err := chef.DecryptDIGIT(data.ActId)
 	if err != nil {
 		return "", err
 	}
@@ -63,21 +63,21 @@ func (connect *defaultConnect) Sign(data *token.Token) (string, error) {
 		authed, id, data.Expiry,
 	}
 
-	numsText, err := codec.EncryptDIGITS(nums)
+	numsText, err := chef.EncryptDIGITS(nums)
 	if err != nil {
 		return "", err
 	}
 
 	payload := ""
 	if data.Payload != nil {
-		if vv, err := codec.MarshalJSON(data.Payload); err == nil {
+		if vv, err := chef.MarshalJSON(data.Payload); err == nil {
 			payload = string(vv)
 		}
 	}
 
 	raw := fmt.Sprintf("%v\t%v\t%v", numsText, data.Identity, payload)
 
-	hash, err := codec.EncryptTEXT(raw)
+	hash, err := chef.EncryptTEXT(raw)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +103,7 @@ func (connect *defaultConnect) Validate(tokenStr string) (*token.Token, error) {
 	}
 
 	//处理原数据
-	raw, err := codec.DecryptTEXT(alls[0])
+	raw, err := chef.DecryptTEXT(alls[0])
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (connect *defaultConnect) Validate(tokenStr string) (*token.Token, error) {
 	}
 
 	//得到数字列表
-	nums, err := codec.DecryptDIGITS(raws[0])
+	nums, err := chef.DecryptDIGITS(raws[0])
 	if err != nil {
 		return nil, err
 	}
@@ -138,14 +138,14 @@ func (connect *defaultConnect) Validate(tokenStr string) (*token.Token, error) {
 
 	//解析payload
 	if raws[2] != "" {
-		err = codec.UnmarshalJSON([]byte(raws[2]), &data.Payload)
+		err = chef.UnmarshalJSON([]byte(raws[2]), &data.Payload)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	//编码ID
-	id, err := codec.EncryptDIGIT(nums[1])
+	id, err := chef.EncryptDIGIT(nums[1])
 	if err == nil {
 		data.ActId = id
 	}
